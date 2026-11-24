@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <!-- Basic metadata: UTF-8 encoding and responsive layout on mobile devices -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Page title shown in browser tab -->
+    <title>SLEEPYLAND</title>
+
+    <!-- Bootstrap 5 CSS for layout and components -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Bootstrap Icons for icons (e.g. cloud upload, info-circle) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+
+    <!-- Custom stylesheet for additional styles specific to this app -->
+    <link rel="stylesheet" href="../static/style.css">
+
+    <!-- Favicon (small icon in the browser tab) -->
+    <link rel="icon" href="../static/images/sleepyland_logo_dark.png" type="image/png">
+
+    <!-- Plotly JS for interactive charts (hypnograms and hypnodensity plots) -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+    <!-- jQuery for DOM manipulation (used in some scripts, although main logic is vanilla JS) -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <!-- Popper and Bootstrap JS for interactive components (tabs, tooltips, etc.) -->
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.min.js"></script>
+
+    <!-- PapaParse for CSV parsing (can be used to handle CSV outputs if needed) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+
+    <!-- Inline styles for subtle visual tweaks on cards -->
+    <style>
+        /* Light translucent backgrounds and hover transitions for channel and algorithms cards */
+        #channels-card .border.rounded,
+        #algorithms-select .border.rounded {
+            background-color: rgba(255, 255, 255, 0.03);
+            transition: all 0.2s ease;
+        }
+
+        /* Slightly stronger background + border on hover to show interactivity */
+        #channels-card .border.rounded:hover,
+        #algorithms-select .border.rounded:hover {
+            background-color: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.25) !important;
+        }
+
+        /* Vertical spacing between stacked .section-card blocks */
+        .section-card + .section-card {
+            margin-top: 1rem;
+        }
+
+        /* History list row hover */
+        #history-list .border.rounded {
+            background-color: rgba(255, 255, 255, 0.03);
+            transition: all 0.2s ease;
+        }
+        #history-list .border.rounded:hover {
+            background-color: rgba(255, 255, 255, 0.06);
+            border-color: rgba(255, 255, 255, 0.25) !important;
+        }
+    </style>
+</head>
+
+<!-- Start with dark theme by default; JS may override with system preference -->
+<body data-bs-theme="dark">
+<div class="container mt-5" style="padding-bottom: 50px">
+    <!-- Main card that holds the entire application interface -->
+    <div class="card">
+        <!-- Centered logo on a softly shaded header -->
+        <div class="card-header app-hero text-center">
+            <!-- Stops all SLEEPYLAND containers (asks for confirmation first) -->
+            <button type="button" class="btn btn-sm btn-outline-danger app-stop-btn" id="stopAppButton"
+                    title="Stop all SLEEPYLAND containers">
+                <i class="bi bi-power me-1"></i>Stop SLEEPYLAND
+            </button>
+            <div class="app-hero-content">
+                <!-- Logo image; src is set dynamically in script.js depending on theme -->
+                <img src="" id="logo" alt="SLEEPYLAND logo" class="app-hero-logo">
+            </div>
+        </div>
+
+        <div class="card-body">
+            <!-- Tab navigation bar (Bootstrap nav-tabs) -->
+            <ul class="nav nav-tabs" id="myTab" role="tablist">
+                <!-- Home tab: main configuration/upload form -->
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="form-tab" data-bs-toggle="tab" data-bs-target="#form"
+                            type="button" role="tab" aria-controls="form" aria-selected="true">
+                        Home
+                    </button>
+                </li>
+                <!-- Hypnograms tab: displays hypnogram plots after prediction -->
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="hypnogram-tab" data-bs-toggle="tab" data-bs-target="#hypnogram-content"
+                            type="button" role="tab" aria-controls="hypnogram-content" aria-selected="false">
+                        Hypnograms
+                    </button>
+                </li>
+                <!-- Hypnodensity tab: displays hypnodensity (probability) plots after prediction -->
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="hypnodensity-tab" data-bs-toggle="tab" data-bs-target="#hypnodensity-content"
+                            type="button" role="tab" aria-controls="hypnodensity-content" aria-selected="false">
+                        Hypnodensity
+                    </button>
+                </li>
+                <!-- History tab: list of previous runs loadable from /app/output -->
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history-content"
+                            type="button" role="tab" aria-controls="history-content" aria-selected="false">
+                        <i class="bi bi-clock-history me-1"></i>History
+                    </button>
+                </li>
+            </ul>
+
+            <!-- Single progress bar shared across all tabs, shown during prediction -->
+            <div id="global-progress-container" class="mt-3" style="display: none;">
+                <div class="d-flex justify-content-between mb-1">
+                    <span id="global-status-label" class="text-muted small"></span>
+                    <span id="global-status-percent" class="text-primary small fw-bold">0%</span>
+                </div>
+                <div class="progress" style="height: 20px;">
+                    <div id="global-progress-bar"
+                         class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+                         role="progressbar" style="width: 0%;"></div>
+                </div>
+            </div>
+
+            <!-- Container for tab content -->
+            <div class="tab-content mt-3" id="myTabContent">
+
+                <!-- Home tab content: form for upload, modalities, and model selection -->
+                <div class="tab-pane fade show active" id="form" role="tabpanel" aria-labelledby="form-tab" tabindex="0">
+                    <!-- Form wrapper (submission handled via JS, not native form submit) -->
+                    <form id="uploadForm" method="post" enctype="multipart/form-data">
+
+                        <div id="input-form-container">
+                            <!-- Section: upload EDF files -->
+                            <div class="card section-card" id="card-uploader">
+                                <!-- Header with title and validation badge -->
+                                <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
+                                    <h5 class="card-title font-weight-bold mb-0" style="margin-top: 5px;">
+                                        Step 1 · Upload EDF Files
+                                    </h5>
+                                    <!-- Hidden badge shown if user clicks Predict with no EDF file selected -->
+                                    <div id="validationBadgeEdf" class="badge bg-danger text-wrap mt-2 mt-md-0 d-none">
+                                        Please select at least one EDF file before submitting
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary step-toggle" data-bs-toggle="collapse" data-bs-target="#uploader-details" aria-controls="uploader-details" aria-expanded="true">Close</button>
+                                </div>
+
+                                <div class="card-body collapse show" id="uploader-details">
+                                    <div class="mb-3">
+                                        <!-- Label for the hidden file input -->
+                                        <label for="edf-files" class="form-label font-weight-bold">EDF input files</label>
+
+                                        <!-- Custom drag-and-drop area (clickable) for EDF files -->
+                                        <div id="drop-zone" class="border rounded-3 p-4 text-center d-flex flex-column align-items-center justify-content-center"
+                                             style="border: 2px dashed #6ea8fe !important; background-color: rgba(110, 168, 254, 0.02); cursor: pointer; transition: all 0.2s ease; min-height: 150px;">
+
+                                            <!-- Cloud upload icon -->
+                                            <i class="bi bi-cloud-arrow-up fs-1 text-primary"></i>
+                                            <!-- Instructions text -->
+                                            <p class="mt-2 mb-1 fw-semibold">Drag & Drop EDF files here</p>
+                                            <p class="text-muted small">or click to browse your computer</p>
+
+                                            <!-- Actual file input (hidden); connected to drag/drop logic in script.js -->
+                                            <input type="file" class="d-none" id="edf-files" name="edf-files" multiple accept=".edf">
+                                        </div>
+
+                                        <!-- Container that shows list of selected EDFs (hidden until files chosen) -->
+                                        <div id="file-list-container" class="mt-3 d-none">
+                                            <h6 class="small fw-bold text-uppercase text-muted">Selected Files:</h6>
+                                            <!-- File badges are dynamically inserted here by script.js -->
+                                            <div id="file-list" class="d-flex flex-wrap gap-2"></div>
+                                        </div>
+
+                                        <!-- Helper text explaining what this step does -->
+                                        <div class="form-text mt-3">
+                                            Upload one or more EDF files to run sleep staging. In the next section, indicate which modalities are available in the uploaded recordings.
+                                        </div>
+                                        <div class="alert alert-info mt-3 mb-0 guide-copy" role="note">Sleep staging runs from the first to the last sample in each uploaded EDF. Make sure to trim each recording to the <strong>LIGHTS-OFF to LIGHTS-ON</strong> interval before uploading if you want predictions limited to that interval.</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Section: available modalities -->
+                            <div class="card section-card d-none" id="channels-card">
+                                <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
+                                    <h5 class="card-title font-weight-bold mb-0" style="margin-top: 5px;">
+                                        Step 2 · Modalities Selection
+                                    </h5>
+
+                                    <!-- Validation badges shown if folder or modalities are missing when Predict is clicked -->
+                                    <div class="d-flex flex-column align-items-md-end">
+                                        <!-- Missing modality selection -->
+                                        <div id="validationBadgeTypeChannels" class="badge bg-danger text-wrap mt-2 d-none">
+                                            Please select at least one modality before submitting
+                                        </div>
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary step-toggle" data-bs-toggle="collapse" data-bs-target="#modalities-details" aria-controls="modalities-details" aria-expanded="true">Close</button>
+                                </div>
+
+                                <div class="card-body collapse show" id="modalities-details">
+
+                                    <!-- Modalities selection: which signals are present in the EDF(s) -->
+                                    <div id="proprietary-channels-selection-container">
+                                        <div class="mb-3">
+                                            <label class="form-label font-weight-bold mb-2">Available modalities in the uploaded EDF</label>
+                                            <p class="text-body-secondary mb-0" style="font-size: 0.95rem;">
+                                                Select each signal type present in the uploaded EDF files. Check the EDF channel names and quality before upload: SLEEPYLAND predicts from each recognized channel, and corrupted channels can affect their combined result. In the output folder, <code>_eeg</code>, <code>_eog</code>, and <code>_chin</code> identify the modalities; each channel's own prediction is saved under its channel name. Automatic exclusion of corrupted channels and epochs is planned but not available yet.
+                                            </p>
+                                        </div>
+
+                                        <!-- Grid of checkboxes for EEG, EOG, EMG, ECG -->
+                                        <div class="row g-3 mb-2">
+                                            <!-- EEG modality -->
+                                            <div class="col-md-6 col-lg-3">
+                                                <div class="border rounded p-3 h-100 position-relative">
+                                                    <button type="button" class="btn btn-link btn-sm position-absolute top-0 end-0 p-2 text-primary" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-placement="top" data-bs-html="true" data-bs-content="Labels with <code>EEG</code> (also <code>EEG2</code>, <code>EEG(sec)</code>) or a 10-20 electrode name, optionally with a reference. Examples: <code>C3</code>, <code>C4-M1</code>, <code>C3:M2</code>, <code>C3A2</code>, <code>F3-A2</code>, <code>O1-M2</code>, <code>Fpz-Cz</code>, <code>EEG Fpz-Cz</code>. Mastoid-only labels (<code>M1</code>, <code>A2</code>, <code>A1-A2</code>) are skipped. Case-insensitive." aria-label="Supported EEG channel names" title="Supported EEG channel names"><i class="bi bi-info-circle-fill"></i></button>
+                                                    <div class="form-check mb-0">
+                                                        <input type="checkbox" class="form-check-input" id="modality-eeg"
+                                                               name="select-channels-proprietary" value="eeg">
+                                                        <label class="form-check-label fw-semibold" for="modality-eeg">EEG</label>
+                                                    </div>
+                                                    <small class="text-body-secondary">At least one EEG channel is available</small>
+                                                </div>
+                                            </div>
+
+                                            <!-- EOG modality -->
+                                            <div class="col-md-6 col-lg-3">
+                                                <div class="border rounded p-3 h-100 position-relative">
+                                                    <button type="button" class="btn btn-link btn-sm position-absolute top-0 end-0 p-2 text-primary" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-placement="top" data-bs-html="true" data-bs-content="Labels with <code>EOG</code> (also <code>EOG1</code>, <code>EOGL</code>, <code>LEOG</code>, <code>HEOG</code>), <code>E1</code>/<code>E2</code>, <code>LOC</code>/<code>ROC</code>, or <code>Left Eye</code>/<code>Right Eye</code>, optionally referenced to a mastoid. Examples: <code>E1-M2</code>, <code>E2-M1</code>, <code>E1M2</code>, <code>LOC-A2</code>, <code>ROC-A1</code>, <code>EOG(L)</code>, <code>EOG1:A1</code>, <code>Left Eye</code>. Labels mixing EOG and an EEG electrode (e.g. <code>E1-C3</code>, <code>E1-Fpz</code>) are skipped as ambiguous. Case-insensitive." aria-label="Supported EOG channel names" title="Supported EOG channel names"><i class="bi bi-info-circle-fill"></i></button>
+                                                    <div class="form-check mb-0">
+                                                        <input type="checkbox" class="form-check-input" id="modality-eog"
+                                                               name="select-channels-proprietary" value="eog">
+                                                        <label class="form-check-label fw-semibold" for="modality-eog">EOG</label>
+                                                    </div>
+                                                    <small class="text-body-secondary">At least one EOG channel is available</small>
+                                                </div>
+                                            </div>
+
+                                            <!-- EMG modality -->
+                                            <div class="col-md-6 col-lg-3">
+                                                <div class="border rounded p-3 h-100 position-relative">
+                                                    <button type="button" class="btn btn-link btn-sm position-absolute top-0 end-0 p-2 text-primary" data-bs-toggle="popover" data-bs-trigger="focus" data-bs-placement="top" data-bs-html="true" data-bs-content="Chin EMG only: labels containing <code>CHIN</code>, <code>SUBMENTAL</code>/<code>SUBM</code>, <code>MENTALIS</code>/<code>MENT</code>, <code>KINN</code>, or <code>MENTON</code>. Examples: <code>Chin1-Chin2</code>, <code>Chin2-Chin3</code>, <code>ChinL</code>, <code>ChinR</code>, <code>L Chin</code>, <code>EMG Chin</code>, <code>Chin-M1</code>, <code>EMG submental</code>, <code>SubM</code>. Leg EMG (<code>LLeg</code>, <code>RLeg</code>) and EMG labels without a chin cue (<code>EMG</code>, <code>EMG1-EMG2</code>) are not used. Case-insensitive.<hr class='my-2'>Unlike EEG and EOG, adding the chin EMG lead has not improved overall sleep-staging performance here. Predictions from chin EMG alone have also been less accurate than predictions from EEG or EOG alone." aria-label="Supported EMG channel names" title="Supported EMG channel names"><i class="bi bi-info-circle-fill"></i></button>
+                                                    <div class="form-check mb-0">
+                                                        <input type="checkbox" class="form-check-input" id="modality-emg"
+                                                               name="select-channels-proprietary" value="emg">
+                                                        <label class="form-check-label fw-semibold" for="modality-emg">EMG</label>
+                                                    </div>
+                                                    <small class="text-body-secondary">At least one chin channel is available.</small>
+                                                    <small class="d-block text-warning mt-1 d-none" id="emg-children-hint">Not available with Children weights: there are no children EMG models. Choose Adult in Step 4 to use EMG.</small>
+                                                </div>
+                                            </div>
+
+                                            <!-- ECG modality -->
+                                            <div class="col-md-6 col-lg-3">
+                                                <div class="border rounded p-3 h-100">
+                                                    <div class="form-check mb-0">
+                                                        <input type="checkbox" class="form-check-input" id="modality-ecg"
+                                                               name="select-channels-proprietary" value="ecg" disabled>
+                                                        <label class="form-check-label fw-semibold" for="modality-ecg">ECG</label>
+                                                    </div>
+                                                    <small class="text-body-secondary">Not supported yet</small>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card section-card preprocessing-guide d-none" id="preprocessing-card">
+                                <div class="card-header d-flex justify-content-between align-items-center"><h5 class="card-title mb-0">Step 3 · Preprocessing &amp; Quality Control <span class="badge bg-info text-dark">NEW</span></h5><button type="button" class="btn btn-sm btn-outline-secondary step-toggle" data-bs-toggle="collapse" data-bs-target="#preprocessing-details" aria-controls="preprocessing-details" aria-expanded="true">Close</button></div>
+                                <div class="card-body collapse show" id="preprocessing-details">
+                                    <div class="alert alert-info guide-copy" role="note">Already preprocessed your EDF? Skip the optional notch and bandpass filters. IQR amplitude clipping remains on by default, followed by resampling to 128 Hz when needed and robust scaling for model input. You can turn off IQR clipping separately below.</div>
+                                    <p class="guide-copy">SLEEPYLAND processes EEG and EOG in this order: <strong>1. optional notch filter → 2. optional bandpass filter → 3. IQR amplitude clipping (on by default) → 4. resampling to 128 Hz when needed → 5. robust scaling</strong>. EMG starts at step 3: the shared notch and bandpass settings do not apply to EMG. Automatic exclusion of corrupted channels and epochs is not available yet.</p>
+                                    <details class="guide-subcard"><summary>1 · Notch filter <span class="text-body-secondary fw-normal">(optional; EEG and EOG)</span></summary><p class="mt-3">Reduce mains interference at 50 or 60 Hz in EEG and EOG. Choose the frequency used where the recording was made. EMG is excluded from this filter.</p><div class="form-check mb-3"><input class="form-check-input" type="checkbox" id="apply-notch"><label class="form-check-label" for="apply-notch">Apply notch filter to EEG and EOG</label></div><label for="notch-freq" class="form-label">Mains frequency</label><select id="notch-freq" class="form-select"><option value="50">50 Hz</option><option value="60">60 Hz</option></select></details>
+                                    <details class="guide-subcard"><summary>2 · Bandpass filter <span class="text-body-secondary fw-normal">(optional; EEG and EOG)</span></summary><p class="mt-3">Keep frequencies between the low and high cutoffs in EEG and EOG. The same range applies to both if selected. EMG is excluded: chin and limb EMG are commonly filtered at 10–100 Hz, which needs separate settings and adequate original sampling rate.</p><div class="form-check mb-3"><input class="form-check-input" type="checkbox" id="apply-bandpass"><label class="form-check-label" for="apply-bandpass">Apply bandpass filter to EEG and EOG</label></div><div class="row g-2"><div class="col-sm-6"><label for="bandpass-low" class="form-label">Low cutoff (Hz)</label><input id="bandpass-low" class="form-control" type="number" min="0.01" step="0.1" value="0.3"></div><div class="col-sm-6"><label for="bandpass-high" class="form-label">High cutoff (Hz)</label><input id="bandpass-high" class="form-control" type="number" min="0.1" step="0.1" value="35"></div></div></details>
+                                    <details class="guide-subcard"><summary>3 · IQR amplitude clipping <span class="text-body-secondary fw-normal">(on by default)</span></summary><p class="mt-3">As in the original SLEEPYLAND preprocessing, values beyond 20 times the recording-wide interquartile range (IQR) are clipped before resampling. Turn this off if you do not want another clipping pass. Clipping limits extreme values; it does not exclude corrupted channels or epochs from prediction averaging.</p>
+                                    <div class="form-check"><input class="form-check-input" type="checkbox" id="apply-qc" checked><label class="form-check-label" for="apply-qc">IQR amplitude clipping (suggested; enabled by default)</label></div>
+                                    </details>
+                                    <details class="guide-subcard"><summary>4–5 · Resampling and scaling <span class="text-body-secondary fw-normal">(always applied when needed)</span></summary><p class="mt-3 mb-0">After clipping, SLEEPYLAND resamples channels whose sample rate differs from 128 Hz, then robust-scales each channel for the models. These steps run for every selected modality.</p></details>
+                                    <details class="guide-subcard"><summary>Planned quality check (QC) <span class="badge bg-secondary">Not available yet</span></summary><p class="mt-3 mb-0">A future check would flag corrupted epochs, exclude heavily affected channels, and omit flagged epochs from channel averaging.</p></details>
+                                    <input type="checkbox" id="apply-channel-qc" class="d-none" disabled><input type="hidden" id="max-bad-epoch-percent" value="20">
+                                    <div id="preprocessing-error" class="text-danger small mt-2 d-none" role="alert"></div>
+                                    <div class="d-flex flex-wrap gap-2 mt-3"><button type="button" class="btn btn-outline-primary" id="preprocessing-continue">Continue with these settings</button><button type="button" class="btn btn-outline-secondary" id="preprocessing-skip">Skip optional filters</button></div>
+                                </div>
+                            </div>
+
+                            <!-- Section: model selection -->
+                            <div class="card section-card d-none" id="algorithms-select">
+                                <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
+                                    <h5 class="card-title font-weight-bold mb-0" style="margin-top: 5px;">
+                                        Step 4 · Sleep Staging Models
+                                    </h5>
+                                    <!-- Validation badge shown if no model is selected when Predict is clicked -->
+                                    <div id="validationBadgeAlgorithms" class="badge bg-danger text-wrap mt-2 mt-md-0 d-none">
+                                        Please select at least one model before submitting
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary step-toggle" data-bs-toggle="collapse" data-bs-target="#models-details" aria-controls="models-details" aria-expanded="true">Close</button>
+                                </div>
+
+                                <div class="card-body collapse show" id="models-details">
+                                    <!-- Instructions for model selection -->
+                                    <div class="mb-3">
+                                        <label class="form-label font-weight-bold mb-2">Select one or more models</label>
+                                        <p class="text-body-secondary mb-0" style="font-size: 0.95rem;">
+                                            Choose the individual models to run, then optionally enable the ensemble result.
+                                        </p>
+                                    </div>
+
+                                    <!-- Grid of individual model options -->
+                                    <div class="row g-3 mb-4">
+                                        <!-- DeepResNet -->
+                                        <div class="col-md-6">
+                                            <div class="border rounded p-3 h-100">
+                                                <div class="form-check mb-0">
+                                                    <input class="form-check-input" type="checkbox" id="deepresnet" name="deepresnet">
+                                                    <label class="form-check-label fw-semibold" for="deepresnet">DeepResNet</label>
+                                                    <!-- Info icon: link to DeepResNet paper -->
+                                                    <a href="https://doi.org/10.1093/sleep/zsaa161" target="_blank"
+                                                       rel="noopener noreferrer"
+                                                       class="ms-2"
+                                                       title="Olesen A. (2021)"
+                                                       style="color: white; text-decoration: none;"
+                                                       id="deepresnet-link">
+                                                        <i class="bi bi-info-circle"></i>
+                                                    </a>
+                                                </div>
+                                                <small class="text-body-secondary">"Olesen AN, Jørgen Jennum P, Mignot E, Sorensen HB. Automatic sleep stage classification with deep residual networks in a mixed-cohort setting. Sleep. 2021 Jan 1;44(1):zsaa161."</small>
+                                            </div>
+                                        </div>
+
+                                        <!-- SleepTransformer -->
+                                        <div class="col-md-6">
+                                            <div class="border rounded p-3 h-100">
+                                                <div class="form-check mb-0">
+                                                    <input class="form-check-input" type="checkbox" id="sleeptransformer" name="sleeptransformer">
+                                                    <label class="form-check-label fw-semibold" for="sleeptransformer">SleepTransformer</label>
+                                                    <!-- Info icon: link to SleepTransformer-based sleep staging paper -->
+                                                    <a href="https://doi.org/10.1109/TBME.2022.3147187" target="_blank"
+                                                       rel="noopener noreferrer"
+                                                       class="ms-2"
+                                                       title="Phan H. (2022)"
+                                                       style="color: white; text-decoration: none;"
+                                                       id="sleeptransformer-link">
+                                                        <i class="bi bi-info-circle"></i>
+                                                    </a>
+                                                </div>
+                                                <small class="text-body-secondary">"Phan H, Mikkelsen K, Chén OY, Koch P, Mertins A, De Vos M. Sleeptransformer: Automatic sleep staging with interpretability and uncertainty quantification. IEEE Transactions on Biomedical Engineering. 2022 Jan 31;69(8):2456-67."</small>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- USleep + Resolution box -->
+                                    <div class="border rounded p-3 mb-4" id="usleep-resolution-box">
+                                        <div class="form-check mb-0">
+                                            <input class="form-check-input" type="checkbox" id="usleep" name="usleep">
+                                            <label class="form-check-label fw-semibold" for="usleep">USleep</label>
+                                            <a href="https://doi.org/10.1038/s41746-021-00440-5" target="_blank"
+                                               rel="noopener noreferrer"
+                                               class="ms-2"
+                                               title="Perslev M. (2021)"
+                                               style="color: white; text-decoration: none;"
+                                               id="usleep-link">
+                                                <i class="bi bi-info-circle"></i>
+                                            </a>
+                                        </div>
+                                        <small class="text-body-secondary">"Perslev M, Darkner S, Kempfner L, Nikolic M, Jennum PJ, Igel C. U-Sleep: resilient high-frequency sleep staging. NPJ digital medicine. 2021 Apr 15;4(1):72."</small>
+
+                                        <!-- Resolution slider (enabled only when USleep is the sole selected model) -->
+                                        <div class="mt-3 pt-2" style="border-top: 1px solid rgba(128,128,128,0.25);">
+                                            <label class="fw-semibold mb-2 d-block" id="resolution-label" style="font-size: 0.9rem;">
+                                                Resolution: <span id="resolution-value" class="text-primary">30</span>s
+                                            </label>
+                                            <input type="range" class="form-range" id="resolution-slider"
+                                                   min="0" max="4" step="1" value="4" disabled>
+                                            <div class="d-flex justify-content-between text-body-secondary mt-1" style="font-size: 0.75rem; padding: 0 2px;">
+                                                <span>1s</span><span>2s</span><span>5s</span><span>10s</span><span>30s</span>
+                                            </div>
+                                            <small class="text-body-secondary d-block mt-1">
+                                                Adjustable only when USleep is the sole selected model; otherwise fixed at 30s.
+                                            </small>
+                                        </div>
+                                    </div>
+
+                                    <!-- Ensemble model option -->
+                                    <div class="border rounded p-3 mb-4">
+                                        <div class="form-check mb-0">
+                                            <input class="form-check-input" type="checkbox" id="ensemble" name="ensemble">
+                                            <label class="form-check-label fw-semibold" for="ensemble">Ensemble</label>
+                                            <!-- Info icon: link to ensemble method paper/preprint -->
+                                            <a href="https://arxiv.org/abs/2511.03488"
+                                               target="_blank"
+                                               rel="noopener noreferrer"
+                                               class="ms-2"
+                                               title="Soft Unweighted Voting"
+                                               style="color: white; text-decoration: none;"
+                                               id="ensemble-link">
+                                                <i class="bi bi-info-circle"></i>
+                                            </a>
+                                        </div>
+                                        <small class="text-body-secondary">
+                                            Soft voting averages the stage probabilities from the selected models and available channels for each epoch, then chooses the stage with the highest average probability. Select at least two individual models or channel predictions for a useful combined result. Check channel quality before upload because corrupted channels are not automatically excluded yet.
+                                        </small>
+                                        <div class="mt-3">
+                                            <label class="form-label fw-semibold mb-1" for="ensemble-method">Ensemble method</label>
+                                            <select class="form-select" id="ensemble-method" disabled>
+                                                <option value="soft_vote" selected>Soft voting</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <!-- Subject type: adult vs child model weights -->
+                                    <div class="border rounded p-3 mb-4">
+                                        <label class="form-label fw-semibold mb-2">Subject type</label>
+                                        <div class="d-flex gap-4">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="model_set" id="model-set-adult" value="adult" checked>
+                                                <label class="form-check-label" for="model-set-adult">Adult</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="model_set" id="model-set-child" value="children">
+                                                <label class="form-check-label" for="model-set-child">Children (0-13 years)</label>
+                                            </div>
+                                        </div>
+                                        <small class="text-body-secondary">Select the age group to use the appropriate model weights.</small>
+                                        <small class="d-block text-warning mt-1 d-none" id="children-emg-hint">Children is unavailable while EMG is selected: there are no children EMG models. Untick EMG in Step 2 to use Children weights.</small>
+                                    </div>
+
+                                    <div class="border rounded p-3 mb-4">
+                                        <label class="form-label fw-semibold" for="review-software">Software used to review predictions</label>
+                                        <select class="form-select" id="review-software" required>
+                                            <option value="" selected disabled>Select software</option>
+                                            <option value="somnomedics">SOMNOmedics</option>
+                                            <option value="compumedics">Compumedics</option>
+                                            <option value="none">None (no review software import files)</option>
+                                        </select>
+                                        <small class="text-body-secondary">Choose a review software format, or None to generate only the standard prediction and annotation files.</small>
+                                    </div>
+
+                                </div>
+                            </div>
+
+                            <div class="card section-card d-none" id="output-card">
+                                <div class="card-header d-flex justify-content-between align-items-center"><h5 class="card-title mb-0">Step 5 · Output Folder</h5><button type="button" class="btn btn-sm btn-outline-secondary step-toggle" data-bs-toggle="collapse" data-bs-target="#output-details" aria-controls="output-details" aria-expanded="true">Close</button></div>
+                                <div class="card-body collapse show" id="output-details">
+                                    <label for="folderName" class="form-label fw-bold">Output folder name</label>
+                                    <input type="text" class="form-control" id="folderName" name="folderName" required placeholder="Example: patient_batch_01">
+                                    <div class="form-text guide-copy">This creates one results folder for the run. Each uploaded EDF gets prediction files for every selected model and signal type, plus an ensemble result if selected. Open the folder for a model, then its resolution and signal type, to find the prediction and review-software import files.</div>
+                                    <details class="guide-subcard mt-3" aria-live="polite"><summary>Output folder structure</summary><p class="mt-3 mb-2">Explore the run folder, then each selected model, its resolution, and its lead folders. The tree below updates with your selections for one example <code>recording.edf</code>:</p><pre class="output-preview mb-0" id="output-preview-tree"></pre><p class="mt-2 mb-0" id="output-preview-note"></p></details>
+                                    <details class="guide-subcard"><summary>What is inside each result file?</summary><dl class="mt-3 mb-0"><dt><code>*_PRED.npy</code> · probability array</dt><dd>NumPy data with one probability per sleep stage (W, N1, N2, N3, REM) for each epoch. At 30-second resolution it has shape <code>[epochs, 5]</code>. Shorter USleep resolutions can include multiple predictions per epoch.</dd><dt><code>*_PRED.annot</code> · annotation and probabilities</dt><dd>Tab-separated rows with the predicted stage, channel name, start and stop time, and a <code>meta</code> field containing <code>pN1</code>, <code>pN2</code>, <code>pN3</code>, <code>pR</code>, and <code>pW</code> probabilities. Annotations are written as 30-second rows even when USleep outputs finer predictions, such as one prediction per second.</dd><dt><code>*_VALID.npy</code> · majority contribution indicator</dt><dd>One Boolean value per epoch in each model's <code>majority/</code> folder. It is normally all true now; the planned QC could mark epochs false when no acceptable channel contributes.</dd><dt><code>recording.h5</code> · detailed HDF5 data</dt><dd>One file per recording at the result root holds selected models under <code>models/</code>, including a combined lead result for each model when multiple leads are available. When selected, <code>ensemble/</code> holds per-channel, lead majority, and combined soft-voting probabilities.</dd><dt>Software import folder</dt><dd>Contains files formatted for the review software selected in Step 4, generated from the annotation.</dd></dl></details>
+                                    <div id="validationBadgeOutputFolder" class="text-danger small mt-2 d-none">Please insert the output folder name before submitting</div>
+                                </div>
+                            </div>
+
+                            <div id="form-actions" class="mt-3 d-none">
+                                    <!-- Predict + Reset buttons on the same row -->
+                                    <div class="row g-2">
+                                        <div class="col-6">
+                                            <button type="button" class="btn w-100 btn-secondary" id="resetButton"
+                                                    onclick="window.location.reload()">
+                                                Reset
+                                            </button>
+                                        </div>
+                                        <div class="col-6">
+                                            <button type="button" class="btn w-100 btn-outline-primary" id="predictButton">
+                                                Predict
+                                            </button>
+                                        </div>
+                                    </div>
+                            </div>
+
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Hypnograms tab content -->
+                <div class="tab-pane fade" id="hypnogram-content" role="tabpanel" aria-labelledby="hypnogram-tab" tabindex="0">
+                    <p class="result-guide">A hypnogram shows the predicted sleep stage over time. Compare the individual models and ensemble, and use Previous/Next to move between uploaded recordings. Review uncertain or implausible transitions against the original signal in your review software.</p>
+                    <div id="resultsContent">
+                        <div id="hypnogram-study-title" class="px-3 pt-2 d-none">
+                            <small class="text-muted">Project: <span id="hypnogram-study-name" class="fw-semibold text-primary"></span></small>
+                        </div>
+                        <!-- Text area for messages/errors related to hypnogram processing -->
+                        <p id="status"></p>
+                        <div id="results">
+                            <!-- Empty state shown before any prediction is run -->
+                            <div id="hypnogram-placeholder" class="text-center py-5 text-muted">
+                                <i class="bi bi-graph-up fs-1 mb-2 d-block opacity-50"></i>
+                                <p class="fw-semibold mb-1">No hypnograms yet</p>
+                                <p class="small mb-0">Run a prediction or load a study from <strong>History</strong>.</p>
+                            </div>
+                            <!-- Cards for each model's hypnogram get appended here by script.js -->
+                            <div id="card-container"></div>
+                            <!-- Navigation buttons to move between slides (subjects/nights) -->
+                            <div id="nextPrevButtonDiv" class="d-flex justify-content-between my-3"
+                                 style="display: none !important">
+                                <button class="btn btn-secondary" id="prev">Previous</button>
+                                <button class="btn btn-secondary" id="next">Next</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hypnodensity tab content -->
+                <div class="tab-pane fade" id="hypnodensity-content" role="tabpanel" aria-labelledby="hypnodensity-tab" tabindex="0">
+                    <p class="result-guide">Hypnodensity shows each sleep stage's predicted probability over time. A dominant band indicates a more confident prediction; similar bands signal uncertainty worth reviewing. Use Previous/Next to inspect each recording.</p>
+                    <div id="resultsContentHypnodensity">
+                        <div id="hypnodensity-study-title" class="px-3 pt-2 d-none">
+                            <small class="text-muted">Project: <span id="hypnodensity-study-name" class="fw-semibold text-primary"></span></small>
+                        </div>
+                        <!-- Text area for messages/errors related to hypnodensity processing -->
+                        <p id="statusHypno"></p>
+                        <div id="resultsHypno">
+                            <!-- Empty state shown before any prediction is run -->
+                            <div id="hypnodensity-placeholder" class="text-center py-5 text-muted">
+                                <i class="bi bi-bar-chart-fill fs-1 mb-2 d-block opacity-50"></i>
+                                <p class="fw-semibold mb-1">No hypnodensity plots yet</p>
+                                <p class="small mb-0">Run a prediction or load a study from <strong>History</strong>.</p>
+                            </div>
+                            <!-- Cards for each model's hypnodensity plots get appended here -->
+                            <div id="card-container-hypno"></div>
+                            <!-- Navigation buttons for hypnodensity slides -->
+                            <div id="nextPrevButtonDivHypno" class="d-flex justify-content-between my-3"
+                                 style="display: none !important">
+                                <button class="btn btn-secondary" id="prevHypno">Previous</button>
+                                <button class="btn btn-secondary" id="nextHypno">Next</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- History tab content -->
+                <div class="tab-pane fade" id="history-content" role="tabpanel" aria-labelledby="history-tab" tabindex="0">
+                    <p class="result-guide">Find earlier runs by their output folder name. Load recreates their plots without rerunning prediction; Refresh updates this list. Deleting a run removes its saved results.</p>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="fw-semibold mb-0">Previous Runs</h6>
+                        <button class="btn btn-sm btn-outline-secondary" id="refreshHistoryBtn">
+                            <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                        </button>
+                    </div>
+                    <div id="history-list">
+                        <!-- Populated by script.js when the tab is activated -->
+                        <p class="text-muted small">Open this tab to see previous runs.</p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirmation modal (replaces browser confirm()) -->
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h6 class="modal-title fw-bold" id="confirmModalLabel">Confirm deletion</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pt-2" id="confirmModalBody"></div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger btn-sm" id="confirmModalOk">
+                    <i class="bi bi-trash me-1"></i>Delete
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main client-side logic -->
+<script src="../static/script.js"></script>
+</body>
+
+</html>

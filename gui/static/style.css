@@ -1,0 +1,118 @@
+/* Prediction response styling  */
+.guide-copy, .result-guide, .guide-subcard p, .guide-subcard .form-text {
+    font-size: 1rem;
+    line-height: 1.55;
+}
+.preprocessing-guide {
+    border-color: rgba(110, 168, 254, 0.55);
+    background: rgba(110, 168, 254, 0.07);
+}
+.preprocessing-guide > .card-header {
+    background: rgba(110, 168, 254, 0.12);
+}
+.guide-subcard, .result-guide {
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.5rem;
+    background: var(--bs-tertiary-bg);
+}
+.guide-subcard h6 { font-weight: 700; }
+.guide-subcard summary { cursor: pointer; font-weight: 700; }
+.output-preview { max-height: 26rem; overflow: auto; font-size: 0.9rem; line-height: 1.45; }
+.app-hero {
+    position: relative;
+    overflow: hidden;
+    padding: 2rem 1rem 1.75rem;
+    border-bottom: 1px solid var(--bs-border-color);
+    background:
+        radial-gradient(circle at 50% 0%, rgba(110, 168, 254, 0.16), transparent 56%),
+        var(--bs-tertiary-bg);
+}
+
+.app-stop-btn {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    z-index: 2;
+}
+
+@media (max-width: 575.98px) {
+    .app-stop-btn {
+        position: static;
+        margin-bottom: 1rem;
+    }
+}
+
+/* Full-page notice shown after the containers have been stopped */
+.app-stopped-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    text-align: center;
+    background: var(--bs-body-bg);
+}
+
+.app-hero-content {
+    position: relative;
+    z-index: 1;
+}
+
+.app-hero-logo {
+    display: block;
+    width: 240px;
+    max-width: 70vw;
+    max-height: 130px;
+    height: auto;
+    object-fit: contain;
+    margin: 0 auto;
+}
+
+.response {
+    margin-top: 1rem;
+    padding: 1rem;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    background-color: #eee;
+}
+
+.scrollable-menu {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.btn-outline-primary {
+    color: #6ea8fe;
+    border-color: #6ea8fe;
+}
+
+.btn-outline-primary:hover {
+    color: black;
+    background-color: #6ea8fe;
+    border-color: #6ea8fe;
+}
+
+.btn-outline-primary:active {
+    background-color: #6ea8fe;
+    border-color: #6ea8fe;
+}
+
+.btn-outline-secondary:hover {
+    color: black;
+}
+
+.hypnogram-slide {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+}
+
+.hypnogram-slide.active {
+    opacity: 1;
+    transform: translateY(0);
+}
+

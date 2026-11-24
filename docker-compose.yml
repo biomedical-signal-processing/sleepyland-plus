@@ -1,0 +1,41 @@
+services:
+  gui:
+    image: bspsupsi/sleepyland-plus:gui
+    build:
+      context: ./gui
+    container_name: gui_container
+    ports:
+      - "8887:8887"
+    depends_on:
+      - manager-api
+    environment:
+      MANAGER_API_URL: http://manager-api:8989
+    volumes:
+      - ./input:/app/input
+      - ./output:/app/output
+
+  manager-api:
+    image: bspsupsi/sleepyland-plus:manager-api
+    build:
+      context: ./manager-api
+    container_name: manager_container
+    ports:
+      - "8989:8989"
+    volumes:
+      - ./input:/app/input
+      - ./output:/app/output
+
+  usleepyland:
+    image: bspsupsi/sleepyland-plus:usleepyland
+    build:
+      context: ./usleepyland
+    container_name: usleepyland_container
+    ports:
+      - "7777:7777"
+    volumes:
+      - ./input:/app/input
+      - ./output:/app/output
+
+volumes:
+  input:
+  output:

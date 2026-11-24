@@ -1,0 +1,15 @@
+h5py>=3.6.0
+matplotlib>=3.4.3
+mne>=0.24.1
+pandas>=1.3.5
+psutil>=5.9.0
+ruamel.yaml>=0.17.21
+scikit-learn>=1.0.2
+scipy>=1.7.3
+tables>=3.7.0
+tabulate>=0.8.9
+tensorflow-cpu==2.13.1; platform_machine == "x86_64"
+# tensorflow-cpu has no Linux ARM wheels; on aarch64 plain tensorflow is CPU-only anyway
+tensorflow==2.13.1; platform_machine == "aarch64"
+einops>=0.8.1
+yamlhparams>=0.2.0

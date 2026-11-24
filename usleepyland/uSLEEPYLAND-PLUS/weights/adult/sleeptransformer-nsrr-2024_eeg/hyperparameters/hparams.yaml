@@ -1,0 +1,111 @@
+# Components prefixed CB are for keras callback hyperparamer settings
+
+__package_info__:
+  package: utime
+  version: 1.1.8
+
+CB_tb: &TB
+  # tensorboard
+  nickname: tb
+  class_name: TensorBoard
+  kwargs: {log_dir: ./tensorboard, profile_batch: 0}
+
+CB_es: &ES
+  # Early stopping
+  nickname: es
+  class_name: EarlyStopping
+  kwargs: {monitor: val_dice, min_delta: 0, patience: 200, verbose: 1, mode: max}
+
+CB_mcp: &MCP
+  # Model checkpoint
+  nickname: mcp
+  class_name: ModelCheckpoint
+  kwargs: {filepath: './model/@epoch_{epoch:02d}_val_dice_{val_dice:.5f}.h5', monitor: val_dice,
+    save_best_only: false, save_weights_only: true, verbose: 1, mode: max}
+
+CB_timer: &TIMER
+  # Train timer callback
+  nickname: timer
+  class_name: TrainTimer
+  pass_logger: true
+  kwargs: {verbose: true}
+
+CB_csv: &CSV
+  # keras.CSVLogger
+  nickname: csv
+  class_name: CSVLogger
+  kwargs: {filename: ./logs/training.csv, separator: ',', append: true}
+
+datasets:
+  # Add dataset IDs --> relative paths here
+  abc: dataset_configurations/abc.yaml
+
+build:
+  #
+  # Hyperparameters passed to the Model.build and __init__ methods
+  #
+  model_class_name: SleepTransformer
+  # input
+  freq_bins: 129  # 0th frequency bin is then ignored
+  time_bins: 29
+  n_channels: 1  #2
+  # epoch transformer params
+  frm_d_model: 128  # 256 # should be (freq_bins-1)*n_channels
+  frm_num_blocks: 4
+  frm_dff: 1024
+  frm_num_heads: 8
+  frm_maxlen: 29
+  # sequence transformer params
+  seq_d_model: 128  # 256 # should be (freq_bins-1)*n_channels
+  seq_num_blocks: 4
+  seq_dff: 1024
+  seq_num_heads: 8
+  seq_maxlen: 35
+  # output layers
+  fc_hidden_size: 1024
+  fc_dropout_rate: 0.1
+  # for the whole model
+  attention_frame_size: 64
+  l2_reg_lambda: 0.0001
+  attn_dropout_rate: 0.1
+  ff_dropout_rate: 0.1
+  ln_epsilon: 1e-6
+  ff_activation_fn: relu
+  n_classes: 5
+  batch_shape: [64, 35, 29, 129, 1] # [64, 35, 29, 129, 2]
+
+augmenters: [{cls_name: RegionalErase, kwargs: {min_region_fraction: 0.001, max_region_fraction: 0.33,
+      log_sample: true, apply_prob: 0.1}}]
+
+scaler: RobustScaler
+
+fit:
+  # Hyperparameters passed to the Trainer object
+  balanced_sampling: true
+  use_multiprocessing: false
+  channel_mixture: false
+  margin: 17
+  get_spectrogram: replace
+
+  # Loss function
+  loss: [SparseCategoricalCrossentropy]
+  # reduction: none
+  loss_kwargs:  # OBS: passed to all losses
+  #  name: my_loss
+    from_logits: true
+
+  metrics: [SparseCategoricalAccuracy]
+  # Ignore 'out-of-bounds' classes in loss computation (e.g. to ignore 'UNKNOWN'/'MOVEMENT' other rare classes)
+  # Comment out or set to Null/False to not ignore any classes
+  ignore_out_of_bounds_classes: true
+
+  # Optimization
+  batch_size: 64
+  n_epochs: 10000
+  verbose: true
+  optimizer: Adam
+  optimizer_kwargs: {learning_rate: 1.0e-04, amsgrad: false, weight_decay: 0.0, beta_1: 0.9,
+    beta_2: 0.999, epsilon: 1.0e-7, clipnorm: 1.0}
+
+  # Callbacks
+  callbacks: [*TB, *MCP, *TIMER, *CSV, *ES]
